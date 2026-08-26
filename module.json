@@ -1,6 +1,6 @@
 {
-  "id": "tile-journal-tooltips",
-  "title": "Tile Journal Tooltips",
+  "id": "tile-journal-tooltips-fix",
+  "title": "Tile Journal Tooltips fix",
   "description": "This module adds a tooltip tab to the 'Tile configuration' and displays interactive tooltips on tiles using journal entries.",
   "version": "#{VERSION}#",
   "authors": [
@@ -9,10 +9,16 @@
       "discord": "mr_rrobot",
       "email": "",
       "url": "https://github.com/devastatorx/tile-journal-tooltips"
+    },
+    {
+      "name": "otimor",
+      "discord:: "",
+      "email": "",
+      "url": "https://github.com/otimor/tile-journal-tooltips"
     }
   ],
   "minimumCoreVersion": "13",
-  "compatibleCoreVersion": "13",
+  "compatibleCoreVersion": "14",
   "esmodules": ["scripts/main.js"],
   "styles": ["styles/tooltip.css"],
   "languages": [],
