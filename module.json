@@ -17,8 +17,9 @@
       "url": "https://github.com/otimor/tile-journal-tooltips"
     }
   ],
-  "minimumCoreVersion": "13",
-  "compatibleCoreVersion": "14",
+  "compatibility": {
+    "minimum": "13",
+  },
   "esmodules": ["scripts/main.js"],
   "styles": ["styles/tooltip.css"],
   "languages": [],
