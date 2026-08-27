@@ -72,6 +72,7 @@ function hideTooltip() {
 
 function getJournalPages(journalEntry) {
   const pages = journalEntry?.pages?.contents ?? journalEntry?.pages ?? [];
+  console.debug(MODULE_ID, "getHournalPages", pages)
   return Array.isArray(pages) ? pages : [];
 }
 
@@ -85,6 +86,7 @@ function buildJournalOptions(selectedJournalId = "") {
 function buildPageOptions(journalId = "", selectedPageId = "") {
   if (!journalId) return [];
   const je = game.journal.get(journalId);
+  console.debug(MODULE_ID, "buildPageOptions", je)
   if (!je) return [];
 
   return getJournalPages(je)
@@ -116,6 +118,7 @@ function isTokenControlsActive() {
 
 function getCachedTooltip(tileDoc) {
   const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
+  console.debug(MODULE_ID, "getCahcedToolTip flags", tileDoc.flags)
   if (!enabled) return null;
 
   const title = tileDoc.getFlag(MODULE_ID, FLAGS.cachedTitle) ?? "";
@@ -149,6 +152,8 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
   const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
   const journalId = overrides.journalId ?? tileDoc.getFlag(MODULE_ID, FLAGS.journalId) ?? "";
   const pageId    = overrides.pageId    ?? tileDoc.getFlag(MODULE_ID, FLAGS.pageId)    ?? "";
+  
+  console.debug(MODULE_ID, "buildCacheFromJournal", enabled, journalId, pageId)
 
   if (!enabled || !journalId) {
     await clearCache(tileDoc);
@@ -170,6 +175,9 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
   let page = null;
   if (pageId && pages.length) page = pages.find(p => p.id === pageId) ?? null;
   if (!page && pages.length) page = pages[0];
+  
+
+  console.debug(MODULE_ID, "buildPageOptions page:", page)
 
   if (page) {
     title = `${je.name}: ${page.name}`;
@@ -200,7 +208,8 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
   }
 
   if (!enriched?.trim()) enriched = "<p><em>(Empty Journal content)</em></p>";
-
+  
+  console.debug(MODULE_ID, "buildPageOptions try to update")
   await tileDoc.update({
     flags: {
       [MODULE_ID]: {
@@ -210,10 +219,11 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
       }
     }
   }, { render: false });
-  console.debug(MODULE_ID, "After tileDoc update",  tileDoc.flags.MODULE_ID)
+  console.debug(MODULE_ID, "buildPageOptions", tileDoc.flags.MODULE_ID)
 }
 
 function tooltipFlagsTouched(change) {
+  console.debug(MODULE_ID, "tooltip Touched", change)
   const base = `flags.${MODULE_ID}`;
   const enabled = foundry.utils.getProperty(change, `${base}.${FLAGS.enabled}`);
   const journalId = foundry.utils.getProperty(change, `${base}.${FLAGS.journalId}`);
@@ -225,6 +235,7 @@ function tooltipFlagsTouched(change) {
 
 Hooks.once("init", async () => {
   // preload HBS
+  console.debug(MODULE_ID, "init module hbs")
   await loadTemplates([`modules/${MODULE_ID}/templates/tile-tooltip-tab.hbs`]);
 });
 
@@ -333,7 +344,7 @@ function addTooltipTabToTileConfig(app, html) {
       if (cacheBtn) {
         cacheBtn.addEventListener("click", async () => {
           if (!game.user.isGM) return;
-
+          console.debug(MODULE_ID, "Cache button pressed")  
           if (!tileDoc.id) {
             if (cacheStatus) cacheStatus.textContent = "⚠️ Save the tile first, then cache.";
             return;
@@ -343,12 +354,15 @@ function addTooltipTabToTileConfig(app, html) {
           cacheBtn.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> Caching…';
 
           try {
+            console.debug(MODULE_ID, "Try to build cache")
             await buildCacheFromJournal(tileDoc, {
               journalId: journalSelect?.value ?? "",
               pageId:    pageSelect?.value    ?? ""
             });
 
             const ts = tileDoc.getFlag(MODULE_ID, FLAGS.cachedUpdated);
+
+            console.debug(MODULE_ID, "Cache updated?", ts)
             if (cacheStatus) {
               cacheStatus.textContent = ts
                 ? `✅ Cached (last updated: ${formatCacheTimestamp(ts)})`
