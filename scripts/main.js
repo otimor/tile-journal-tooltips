@@ -271,7 +271,7 @@ function addTooltipTabToTileConfig(app, html) {
 
   const tplPath = `modules/${MODULE_ID}/templates/tile-tooltip-tab.hbs`;
 
-  renderTemplate(tplPath, {
+  foundry.applications.handlebars.renderTemplate(tplPath, {
     enabled,
     journalOptions,
     pageOptions,
