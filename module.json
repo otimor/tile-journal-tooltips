@@ -18,7 +18,8 @@
     }
   ],
   "compatibility": {
-    "minimum": "13"
+    "minimum": "13", 
+    "verified": "13"
   },
   "esmodules": ["scripts/main.js"],
   "styles": ["styles/tooltip.css"],
