@@ -1,14 +1,13 @@
 const MODULE_ID = "tile-journal-tooltips-fix";
 const TOOLTIP_ID = "tjt-tooltip-fix";
 
-// flags stored on the tile document
 const FLAGS = {
   enabled: "enabled",
   journalId: "journalId",
   pageId: "pageId",
   cachedHtml: "cachedHtml",
   cachedTitle: "cachedTitle",
-  cachedUpdated: "cachedUpdated" // timestamp (ms)
+  cachedUpdated: "cachedUpdated"
 };
 
 let tooltipEl = null;
@@ -16,30 +15,39 @@ let mouseX = 0;
 let mouseY = 0;
 let hideTimer = null;
 
-// hover tracking (now layer-independent)
-let _tjtHover = {
+const _tjtHover = {
   tileId: null,
   onMove: null,
   onLeave: null
 };
 
-/* tooltip DOM */
+
+/* ------------------------------------------------------------------------- */
+/* Tooltip DOM                                                               */
+/* ------------------------------------------------------------------------- */
 
 function ensureTooltipEl() {
   if (tooltipEl) return tooltipEl;
+
   tooltipEl = document.createElement("div");
   tooltipEl.id = TOOLTIP_ID;
   tooltipEl.style.display = "none";
+
   document.body.appendChild(tooltipEl);
+
   return tooltipEl;
 }
 
+
 function positionTooltip() {
   if (!tooltipEl) return;
+
   const offset = 14;
+
   tooltipEl.style.left = `${mouseX + offset}px`;
   tooltipEl.style.top = `${mouseY + offset}px`;
 }
+
 
 function showTooltip(html) {
   ensureTooltipEl();
@@ -51,79 +59,129 @@ function showTooltip(html) {
 
   tooltipEl.innerHTML = html;
   tooltipEl.style.display = "block";
+
   positionTooltip();
 
- 
+  // Force layout so CSS transition works reliably.
   tooltipEl.getBoundingClientRect();
+
   tooltipEl.classList.add("visible");
 }
 
+
 function hideTooltip() {
   if (!tooltipEl) return;
+
   tooltipEl.classList.remove("visible");
+
+  if (hideTimer) {
+    clearTimeout(hideTimer);
+  }
+
   hideTimer = setTimeout(() => {
     if (!tooltipEl) return;
+
     tooltipEl.style.display = "none";
     tooltipEl.innerHTML = "";
+    hideTimer = null;
   }, 180);
 }
 
-/* journal helpers */
+
+/* ------------------------------------------------------------------------- */
+/* Journal helpers                                                           */
+/* ------------------------------------------------------------------------- */
 
 function getJournalPages(journalEntry) {
-  const pages = journalEntry?.pages?.contents ?? journalEntry?.pages ?? [];
-  console.debug(MODULE_ID, "getHournalPages", pages)
+  const pages =
+    journalEntry?.pages?.contents ??
+    journalEntry?.pages ??
+    [];
+
   return Array.isArray(pages) ? pages : [];
 }
 
+
 function buildJournalOptions(selectedJournalId = "") {
   return game.journal
-    .map(j => ({ id: j.id, name: j.name }))
+    .map(j => ({
+      id: j.id,
+      name: j.name
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(o => ({ ...o, selected: o.id === selectedJournalId }));
+    .map(o => ({
+      ...o,
+      selected: o.id === selectedJournalId
+    }));
 }
+
 
 function buildPageOptions(journalId = "", selectedPageId = "") {
   if (!journalId) return [];
-  const je = game.journal.get(journalId);
-  console.debug(MODULE_ID, "buildPageOptions", je)
-  if (!je) return [];
 
-  return getJournalPages(je)
-    .map(p => ({ id: p.id, name: p.name }))
+  const journal = game.journal.get(journalId);
+
+  if (!journal) return [];
+
+  return getJournalPages(journal)
+    .map(p => ({
+      id: p.id,
+      name: p.name
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(o => ({ ...o, selected: o.id === selectedPageId }));
+    .map(o => ({
+      ...o,
+      selected: o.id === selectedPageId
+    }));
 }
 
-function formatCacheTimestamp(ts) {
-  if (!ts) return "";
+
+function formatCacheTimestamp(timestamp) {
+  if (!timestamp) return "";
+
   try {
-    return new Date(ts).toLocaleString();
+    return new Date(timestamp).toLocaleString();
   } catch {
     return "";
   }
 }
 
-function isTokenControlsActive() {
-  // confirm token layer is the active layer - fixes for tooltips displaying on any/all active layers (such as lighting or walls)
-  if (canvas?.activeLayer && canvas?.tokens) return canvas.activeLayer === canvas.tokens;
 
-  // fallbacks for layer detection
+/* ------------------------------------------------------------------------- */
+/* Foundry layer helpers                                                     */
+/* ------------------------------------------------------------------------- */
+
+function isTokenControlsActive() {
+  if (canvas?.activeLayer && canvas?.tokens) {
+    return canvas.activeLayer === canvas.tokens;
+  }
+
   const name = canvas?.activeLayer?.options?.name ?? "";
   const id = canvas?.activeLayer?.options?.layer ?? "";
+
   return name === "TokenLayer" || id === "tokens";
 }
 
-/* cache logic */
+
+/* ------------------------------------------------------------------------- */
+/* Cache                                                                     */
+/* ------------------------------------------------------------------------- */
 
 function getCachedTooltip(tileDoc) {
-  const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
-  console.debug(MODULE_ID, "getCahcedToolTip flags", tileDoc.flags)
+  const enabled = !!tileDoc.getFlag(
+    MODULE_ID,
+    FLAGS.enabled
+  );
+
   if (!enabled) return null;
 
-  const title = tileDoc.getFlag(MODULE_ID, FLAGS.cachedTitle) ?? "";
-  const html = tileDoc.getFlag(MODULE_ID, FLAGS.cachedHtml) ?? "";
-  if (!html?.trim()) return null;
+  const title =
+    tileDoc.getFlag(MODULE_ID, FLAGS.cachedTitle) ?? "";
+
+  const html =
+    tileDoc.getFlag(MODULE_ID, FLAGS.cachedHtml) ?? "";
+
+  if (!html.trim()) return null;
 
   const safeTitle = title
     ? `<div class="tjt-title">${foundry.utils.escapeHTML(title)}</div>`
@@ -132,442 +190,1068 @@ function getCachedTooltip(tileDoc) {
   return `${safeTitle}${html}`;
 }
 
+
+/**
+ * Clear cached data.
+ *
+ * We deliberately use empty values instead of the old "-=field"
+ * deletion syntax. Foundry V13 deprecated that syntax.
+ */
 async function clearCache(tileDoc) {
-  console.debug(MODULE_ID, "Before clearCache",  tileDoc.flags.MODULE_ID)
-  await tileDoc.update({
-    flags: {
-      [MODULE_ID]: {
-        [FLAGS.cachedHtml]: foundry.data.operators._del,
-        [FLAGS.cachedTitle]: foundry.data.operators._del,
-        [FLAGS.cachedUpdated]: foundry.data.operators._del
+  await tileDoc.update(
+    {
+      flags: {
+        [MODULE_ID]: {
+          [FLAGS.cachedHtml]: "",
+          [FLAGS.cachedTitle]: "",
+          [FLAGS.cachedUpdated]: null
+        }
       }
+    },
+    {
+      render: false
     }
-  }, { render: false });
-  console.debug(MODULE_ID, "After clearCache",  tileDoc.flags.MODULE_ID)
+  );
 }
 
-async function buildCacheFromJournal(tileDoc, overrides = {}) {
-  if (!game.user.isGM) return;
 
-  const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
-  const journalId = overrides.journalId ?? tileDoc.getFlag(MODULE_ID, FLAGS.journalId) ?? "";
-  const pageId    = overrides.pageId    ?? tileDoc.getFlag(MODULE_ID, FLAGS.pageId)    ?? "";
-  
-  console.debug(MODULE_ID, "buildCacheFromJournal", enabled, journalId, pageId)
+/**
+ * Build the cached tooltip from a Journal Entry.
+ *
+ * IMPORTANT:
+ * This function does NOT modify enabled/journalId/pageId.
+ * Those are configuration values.
+ *
+ * It only writes:
+ *   cachedTitle
+ *   cachedHtml
+ *   cachedUpdated
+ */
+async function buildCacheFromJournal(tileDoc, overrides = {}) {
+  if (!game.user.isGM) {
+    throw new Error("Only a GM can build tooltip caches.");
+  }
+
+  const enabled = !!tileDoc.getFlag(
+    MODULE_ID,
+    FLAGS.enabled
+  );
+
+  const journalId =
+    overrides.journalId ??
+    tileDoc.getFlag(MODULE_ID, FLAGS.journalId) ??
+    "";
+
+  const pageId =
+    overrides.pageId ??
+    tileDoc.getFlag(MODULE_ID, FLAGS.pageId) ??
+    "";
+
+  console.debug(
+    MODULE_ID,
+    "buildCacheFromJournal",
+    {
+      enabled,
+      journalId,
+      pageId
+    }
+  );
 
   if (!enabled || !journalId) {
     await clearCache(tileDoc);
-    return;
+    return false;
   }
 
-  const je = game.journal.get(journalId);
-  if (!je) {
+  const journal = game.journal.get(journalId);
+
+  if (!journal) {
+    console.warn(
+      `${MODULE_ID} | Journal ${journalId} not found`
+    );
+
     await clearCache(tileDoc);
-    return;
+    return false;
   }
 
-  const pages = getJournalPages(je);
+  const pages = getJournalPages(journal);
 
-  let title = je.name;
+  let title = journal.name;
   let enriched = "";
 
-  // resolve which page to use
   let page = null;
-  if (pageId && pages.length) page = pages.find(p => p.id === pageId) ?? null;
-  if (!page && pages.length) page = pages[0];
-  
 
-  console.debug(MODULE_ID, "buildPageOptions page:", page)
+  if (pageId && pages.length) {
+    page = pages.find(p => p.id === pageId) ?? null;
+  }
+
+  /*
+   * If no page was explicitly selected, use the first page.
+   */
+  if (!page && pages.length) {
+    page = pages[0];
+  }
 
   if (page) {
-    title = `${je.name}: ${page.name}`;
+    title = `${journal.name}: ${page.name}`;
 
     switch (page.type) {
       case "image": {
         const src = page.src ?? "";
+
         const caption = page.image?.caption
-          ? `<p class="tjt-caption">${foundry.utils.escapeHTML(page.image.caption)}</p>`
+          ? `<p class="tjt-caption">${foundry.utils.escapeHTML(
+              page.image.caption
+            )}</p>`
           : "";
+
         enriched = src
-          ? `<div class="tjt-image-page"><img src="${src}" alt="${foundry.utils.escapeHTML(page.name)}"/>${caption}</div>`
+          ? `
+            <div class="tjt-image-page">
+              <img
+                src="${src}"
+                alt="${foundry.utils.escapeHTML(page.name)}"
+              />
+              ${caption}
+            </div>
+          `
           : "<p><em>(No image set)</em></p>";
+
         break;
       }
 
       case "text":
       default: {
         const raw = page.text?.content ?? "";
-        enriched = raw.trim() ? await TextEditor.enrichHTML(raw, { async: true }) : "";
+
+        enriched = raw.trim()
+          ? await TextEditor.enrichHTML(raw, {
+              async: true
+            })
+          : "";
+
         break;
       }
     }
   } else {
-    // legacy: journal entry with no pages
-    const raw = je.content ?? "";
-    enriched = raw.trim() ? await TextEditor.enrichHTML(raw, { async: true }) : "";
+    /*
+     * Legacy Journal Entry content.
+     */
+    const raw = journal.content ?? "";
+
+    enriched = raw.trim()
+      ? await TextEditor.enrichHTML(raw, {
+          async: true
+        })
+      : "";
   }
 
-  if (!enriched?.trim()) enriched = "<p><em>(Empty Journal content)</em></p>";
-  
-  console.debug(MODULE_ID, "buildPageOptions try to update")
-  await tileDoc.update({
-    flags: {
-      [MODULE_ID]: {
-        [FLAGS.cachedTitle]:   title,
-        [FLAGS.cachedHtml]:    enriched,
-        [FLAGS.cachedUpdated]: Date.now()
+  if (!enriched?.trim()) {
+    enriched = "<p><em>(Empty Journal content)</em></p>";
+  }
+
+  /*
+   * ONLY cache fields are written here.
+   *
+   * This is important:
+   * enabled/journalId/pageId are never touched by this update.
+   */
+  await tileDoc.update(
+    {
+      flags: {
+        [MODULE_ID]: {
+          [FLAGS.cachedTitle]: title,
+          [FLAGS.cachedHtml]: enriched,
+          [FLAGS.cachedUpdated]: Date.now()
+        }
       }
+    },
+    {
+      render: false
     }
-  }, { render: false });
-  console.debug(MODULE_ID, "buildPageOptions", tileDoc.flags.MODULE_ID)
+  );
+
+  console.debug(
+    MODULE_ID,
+    "Cache successfully written",
+    {
+      tileId: tileDoc.id,
+      title,
+      htmlLength: enriched.length
+    }
+  );
+
+  return true;
 }
 
-function tooltipFlagsTouched(change) {
-  console.debug(MODULE_ID, "tooltip Touched", change)
-  const base = `flags.${MODULE_ID}`;
-  const enabled = foundry.utils.getProperty(change, `${base}.${FLAGS.enabled}`);
-  const journalId = foundry.utils.getProperty(change, `${base}.${FLAGS.journalId}`);
-  const pageId = foundry.utils.getProperty(change, `${base}.${FLAGS.pageId}`);
-  return enabled !== undefined || journalId !== undefined || pageId !== undefined;
-}
 
-/* tab injection to display settings */
+/* ------------------------------------------------------------------------- */
+/* Tile Configuration UI                                                     */
+/* ------------------------------------------------------------------------- */
 
-Hooks.once("init", async () => {
-  // preload HBS
-  console.debug(MODULE_ID, "init module hbs")
-  await loadTemplates([`modules/${MODULE_ID}/templates/tile-tooltip-tab.hbs`]);
-});
-
-// detect existing tab group
 function addTooltipTabToTileConfig(app, html) {
-  const root = html instanceof HTMLElement ? html : html?.[0];
+  const root =
+    html instanceof HTMLElement
+      ? html
+      : html?.[0];
+
   if (!root) return;
 
-  
-  const nav = root.querySelector('nav.sheet-tabs.tabs[data-application-part="tabs"], nav.sheet-tabs.tabs, nav.tabs');
+  const nav = root.querySelector(
+    'nav.sheet-tabs.tabs[data-application-part="tabs"], nav.sheet-tabs.tabs, nav.tabs'
+  );
+
   if (!nav) return;
 
-  
-  const firstTabAnchor = nav.querySelector('a[data-action="tab"][data-group], a[data-group]');
-  const group = firstTabAnchor?.dataset?.group ?? "sheet";
+  const firstTabAnchor = nav.querySelector(
+    'a[data-action="tab"][data-group], a[data-group]'
+  );
 
-  // prevent duplicates
-  if (nav.querySelector(`a[data-tab="${MODULE_ID}"]`) || root.querySelector(`.tab[data-tab="${MODULE_ID}"]`)) return;
+  const group =
+    firstTabAnchor?.dataset?.group ?? "sheet";
 
+  /*
+   * Prevent duplicate insertion.
+   */
+  if (
+    nav.querySelector(`a[data-tab="${MODULE_ID}"]`) ||
+    root.querySelector(`.tab[data-tab="${MODULE_ID}"]`)
+  ) {
+    return;
+  }
 
-  const existingPanel = root.querySelector(`.tab[data-group="${group}"]`);
-  const panelContainer = existingPanel?.parentElement;
+  const existingPanel = root.querySelector(
+    `.tab[data-group="${group}"]`
+  );
+
+  const panelContainer =
+    existingPanel?.parentElement;
+
   if (!panelContainer) return;
 
-  const tileDoc = app.object ?? app.document ?? app.tile?.document;
+  const tileDoc =
+    app.object ??
+    app.document ??
+    app.tile?.document;
+
   if (!tileDoc) return;
 
-  const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
-  const selectedJournalId = tileDoc.getFlag(MODULE_ID, FLAGS.journalId) ?? "";
-  const selectedPageId = tileDoc.getFlag(MODULE_ID, FLAGS.pageId) ?? "";
 
-  const journalOptions = buildJournalOptions(selectedJournalId);
-  const pageOptions = buildPageOptions(selectedJournalId, selectedPageId);
+  /*
+   * IMPORTANT:
+   * Read configuration from the actual Tile Document every time
+   * the configuration window opens.
+   */
+  const enabled = !!tileDoc.getFlag(
+    MODULE_ID,
+    FLAGS.enabled
+  );
+
+  const selectedJournalId =
+    tileDoc.getFlag(
+      MODULE_ID,
+      FLAGS.journalId
+    ) ?? "";
+
+  const selectedPageId =
+    tileDoc.getFlag(
+      MODULE_ID,
+      FLAGS.pageId
+    ) ?? "";
+
+  const journalOptions =
+    buildJournalOptions(selectedJournalId);
+
+  const pageOptions =
+    buildPageOptions(
+      selectedJournalId,
+      selectedPageId
+    );
+
   const hasJournal = !!selectedJournalId;
 
-  const cachedHtml = tileDoc.getFlag(MODULE_ID, FLAGS.cachedHtml) ?? "";
-  const hasCache = !!cachedHtml?.trim();
-  const cacheUpdated = formatCacheTimestamp(tileDoc.getFlag(MODULE_ID, FLAGS.cachedUpdated));
+  const cachedHtml =
+    tileDoc.getFlag(
+      MODULE_ID,
+      FLAGS.cachedHtml
+    ) ?? "";
+
+  const hasCache =
+    !!cachedHtml.trim();
+
+  const cacheUpdated =
+    formatCacheTimestamp(
+      tileDoc.getFlag(
+        MODULE_ID,
+        FLAGS.cachedUpdated
+      )
+    );
 
 
-  const a = document.createElement("a");
-  a.dataset.action = "tab";
-  a.dataset.group = group;
-  a.dataset.tab = MODULE_ID;
-  a.innerHTML = `<i class="fa-solid fa-comment-dots" inert=""></i><span>Tooltip</span>`;
-  nav.appendChild(a);
+  /*
+   * Add the navigation tab.
+   */
+  const tabLink =
+    document.createElement("a");
 
-  const tplPath = `modules/${MODULE_ID}/templates/tile-tooltip-tab.hbs`;
+  tabLink.dataset.action = "tab";
+  tabLink.dataset.group = group;
+  tabLink.dataset.tab = MODULE_ID;
 
-  foundry.applications.handlebars.renderTemplate(tplPath, {
-    enabled,
-    journalOptions,
-    pageOptions,
-    hasJournal,
-    hasCache,
-    cacheUpdated
-  })
+  tabLink.innerHTML =
+    `<i class="fa-solid fa-comment-dots" inert></i>` +
+    `<span>Tooltip</span>`;
+
+  nav.appendChild(tabLink);
+
+
+  /*
+   * Render our Handlebars template.
+   *
+   * Foundry V13 namespaced API.
+   */
+  const tplPath =
+    `modules/${MODULE_ID}/templates/tile-tooltip-tab.hbs`;
+
+  foundry.applications.handlebars
+    .renderTemplate(
+      tplPath,
+      {
+        enabled,
+        journalOptions,
+        pageOptions,
+        hasJournal,
+        hasCache,
+        cacheUpdated
+      }
+    )
     .then(markup => {
-      if (!markup || !markup.trim()) throw new Error("Template rendered empty markup");
+      if (!markup?.trim()) {
+        throw new Error(
+          "Tooltip template rendered empty markup."
+        );
+      }
 
-      const wrapper = document.createElement("div");
-      wrapper.innerHTML = markup.trim();
+      const wrapper =
+        document.createElement("div");
 
-      const panel = wrapper.firstElementChild;
-      if (!panel) throw new Error("Template produced no root element");
+      wrapper.innerHTML =
+        markup.trim();
 
-      panel.classList.add("tab", "scrollable");
+      const panel =
+        wrapper.firstElementChild;
+
+      if (!panel) {
+        throw new Error(
+          "Tooltip template produced no root element."
+        );
+      }
+
+      panel.classList.add(
+        "tab",
+        "scrollable"
+      );
+
       panel.dataset.group = group;
       panel.dataset.tab = MODULE_ID;
-      panel.dataset.applicationPart = MODULE_ID;
+      panel.dataset.applicationPart =
+        MODULE_ID;
 
       panelContainer.appendChild(panel);
 
-      // live page dropdown update on journal change
-      const journalSelect = panel.querySelector("select.tjt-journal");
-      const pageSelect = panel.querySelector("select.tjt-page");
 
-      if (journalSelect && pageSelect) {
-        const refillPages = (journalId) => {
-          pageSelect.innerHTML = "";
+      /* --------------------------------------------------------------- */
+      /* Journal/Page controls                                           */
+      /* --------------------------------------------------------------- */
 
-          const opt0 = document.createElement("option");
-          opt0.value = "";
-          opt0.textContent = "— First Page / Entry Content —";
-          pageSelect.appendChild(opt0);
+      const journalSelect =
+        panel.querySelector(
+          "select.tjt-journal"
+        );
 
-          const opts = buildPageOptions(journalId, "");
-          for (const o of opts) {
-            const opt = document.createElement("option");
-            opt.value = o.id;
-            opt.textContent = o.name;
-            pageSelect.appendChild(opt);
+      const pageSelect =
+        panel.querySelector(
+          "select.tjt-page"
+        );
+
+
+      /*
+       * When Journal changes, rebuild the Page dropdown.
+       */
+      if (
+        journalSelect &&
+        pageSelect
+      ) {
+        const refillPages =
+          journalId => {
+            pageSelect.innerHTML = "";
+
+            const firstOption =
+              document.createElement(
+                "option"
+              );
+
+            firstOption.value = "";
+            firstOption.textContent =
+              "— First Page / Entry Content —";
+
+            pageSelect.appendChild(
+              firstOption
+            );
+
+            const options =
+              buildPageOptions(
+                journalId,
+                ""
+              );
+
+            for (const optionData of options) {
+              const option =
+                document.createElement(
+                  "option"
+                );
+
+              option.value =
+                optionData.id;
+
+              option.textContent =
+                optionData.name;
+
+              pageSelect.appendChild(
+                option
+              );
+            }
+
+            pageSelect.disabled =
+              !journalId;
+
+            /*
+             * Changing Journal intentionally resets
+             * the Page selection.
+             */
+            pageSelect.value = "";
+          };
+
+        journalSelect.addEventListener(
+          "change",
+          event => {
+            refillPages(
+              event.target.value ?? ""
+            );
           }
-
-          pageSelect.disabled = !journalId;
-          pageSelect.value = "";
-        };
-
-        journalSelect.addEventListener("change", (ev) => refillPages(ev.target.value ?? ""));
+        );
       }
 
-      // Cache Now button — builds cache from current dropdown selections without requiring a save
-      const cacheBtn    = panel.querySelector(".tjt-cache-btn");
-      const cacheStatus = panel.querySelector(".tjt-cache-status");
+
+      /* --------------------------------------------------------------- */
+      /* Cache Now                                                       */
+      /* --------------------------------------------------------------- */
+
+      const cacheBtn =
+        panel.querySelector(
+          ".tjt-cache-btn"
+        );
+
+      const cacheStatus =
+        panel.querySelector(
+          ".tjt-cache-status"
+        );
+
 
       if (cacheBtn) {
-        cacheBtn.addEventListener("click", async () => {
-          if (!game.user.isGM) return;
-          console.debug(MODULE_ID, "Cache button pressed")  
-          if (!tileDoc.id) {
-            if (cacheStatus) cacheStatus.textContent = "⚠️ Save the tile first, then cache.";
-            return;
-          }
+        cacheBtn.addEventListener(
+          "click",
+          async event => {
+            event.preventDefault();
+            event.stopPropagation();
 
-          cacheBtn.disabled = true;
-          cacheBtn.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> Caching…';
-
-          try {
-            console.debug(MODULE_ID, "Try to build cache")
-            await buildCacheFromJournal(tileDoc, {
-              journalId: journalSelect?.value ?? "",
-              pageId:    pageSelect?.value    ?? ""
-            });
-
-            const ts = tileDoc.getFlag(MODULE_ID, FLAGS.cachedUpdated);
-
-            console.debug(MODULE_ID, "Cache updated?", ts)
-            if (cacheStatus) {
-              cacheStatus.textContent = ts
-                ? `✅ Cached (last updated: ${formatCacheTimestamp(ts)})`
-                : "⚠️ Cache failed";
+            if (!game.user.isGM) {
+              return;
             }
-          } catch (err) {
-            console.error(`${MODULE_ID} | Cache Now failed`, err);
-            if (cacheStatus) cacheStatus.textContent = "❌ Cache failed (see console)";
-          } finally {
-            cacheBtn.disabled = false;
-            cacheBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Cache Now';
+
+            if (!tileDoc.id) {
+              if (cacheStatus) {
+                cacheStatus.textContent =
+                  "⚠️ Save the tile first, then cache.";
+              }
+
+              return;
+            }
+
+            const selectedEnabled =
+              panel.querySelector(
+                'input[name="flags.tile-journal-tooltips.enabled"]'
+              )?.checked ?? false;
+
+            const selectedJournal =
+              journalSelect?.value ?? "";
+
+            const selectedPage =
+              pageSelect?.value ?? "";
+
+
+            cacheBtn.disabled = true;
+
+            cacheBtn.innerHTML =
+              '<i class="fa-solid fa-rotate fa-spin"></i> Caching…';
+
+
+            try {
+              /*
+               * STEP 1:
+               *
+               * Save ONLY the configuration.
+               *
+               * This means the values survive closing/reopening
+               * the Tile Configuration window.
+               */
+              await tileDoc.update(
+                {
+                  flags: {
+                    [MODULE_ID]: {
+                      [FLAGS.enabled]:
+                        selectedEnabled,
+
+                      [FLAGS.journalId]:
+                        selectedJournal,
+
+                      [FLAGS.pageId]:
+                        selectedPage
+                    }
+                  }
+                },
+                {
+                  render: false
+                }
+              );
+
+
+              /*
+               * STEP 2:
+               *
+               * Build the cache using the now-saved configuration.
+               */
+              const success =
+                await buildCacheFromJournal(
+                  tileDoc
+                );
+
+
+              /*
+               * Read the timestamp back from the
+               * updated Tile Document.
+               */
+              const timestamp =
+                tileDoc.getFlag(
+                  MODULE_ID,
+                  FLAGS.cachedUpdated
+                );
+
+
+              if (
+                cacheStatus
+              ) {
+                if (
+                  success &&
+                  timestamp
+                ) {
+                  cacheStatus.textContent =
+                    `✅ Cached (last updated: ${formatCacheTimestamp(timestamp)})`;
+                } else {
+                  cacheStatus.textContent =
+                    "⚠️ Cache was not created.";
+                }
+              }
+
+            } catch (error) {
+              console.error(
+                `${MODULE_ID} | Cache Now failed`,
+                error
+              );
+
+              if (cacheStatus) {
+                cacheStatus.textContent =
+                  "❌ Cache failed (see console)";
+              }
+
+            } finally {
+              cacheBtn.disabled = false;
+
+              cacheBtn.innerHTML =
+                '<i class="fa-solid fa-rotate"></i> Cache Now';
+            }
           }
-        });
+        );
       }
 
-      // rebind tab controller(s)
+
+      /* --------------------------------------------------------------- */
+      /* Rebind Foundry tabs                                             */
+      /* --------------------------------------------------------------- */
+
       try {
         if (app._tabs) {
-          for (const t of Object.values(app._tabs)) t?.bind?.(root);
+          for (
+            const tabController
+            of Object.values(app._tabs)
+          ) {
+            tabController?.bind?.(root);
+          }
         }
-        if (app.tabs?.bind) app.tabs.bind(root);
-      } catch (e) {
-        console.warn(`${MODULE_ID} | Failed to rebind tabs`, e);
+
+        if (app.tabs?.bind) {
+          app.tabs.bind(root);
+        }
+
+      } catch (error) {
+        console.warn(
+          `${MODULE_ID} | Failed to rebind tabs`,
+          error
+        );
       }
     })
-    .catch(err => {
-      console.error(`${MODULE_ID} | Failed to render template at ${tplPath}`, err);
+    .catch(error => {
+      console.error(
+        `${MODULE_ID} | Failed to render template at ${tplPath}`,
+        error
+      );
     });
 }
 
-/* hover detection (limit to token controls layer) - fixes for tooltips diplaying on all layers */
 
-/**
- * Point in rotated rectangle (handles rotated tiles)
- */
-function pointInRotatedRect(px, py, rectX, rectY, w, h, rotDeg) {
-  const cx = rectX + w / 2;
-  const cy = rectY + h / 2;
+/* ------------------------------------------------------------------------- */
+/* Hover detection                                                           */
+/* ------------------------------------------------------------------------- */
 
-  // translate point to rect center
-  let dx = px - cx;
-  let dy = py - cy;
+function pointInRotatedRect(
+  px,
+  py,
+  rectX,
+  rectY,
+  width,
+  height,
+  rotation
+) {
+  const centerX =
+    rectX + width / 2;
 
-  // rotate point by -rot
-  const r = (-rotDeg * Math.PI) / 180;
-  const cos = Math.cos(r);
-  const sin = Math.sin(r);
-  const rx = dx * cos - dy * sin;
-  const ry = dx * sin + dy * cos;
+  const centerY =
+    rectY + height / 2;
 
-  return Math.abs(rx) <= w / 2 && Math.abs(ry) <= h / 2;
+  const dx =
+    px - centerX;
+
+  const dy =
+    py - centerY;
+
+  const radians =
+    (-rotation * Math.PI) / 180;
+
+  const cos =
+    Math.cos(radians);
+
+  const sin =
+    Math.sin(radians);
+
+  const rx =
+    dx * cos - dy * sin;
+
+  const ry =
+    dx * sin + dy * cos;
+
+  return (
+    Math.abs(rx) <= width / 2 &&
+    Math.abs(ry) <= height / 2
+  );
 }
 
-/**
- * find the "topmost" tooltip-enabled tile at canvas coords (x,y).
- * use reverse iteration as a good approximation of draw order.
- */
+
 function getTopmostTooltipTileAt(x, y) {
-  const tiles = canvas?.tiles?.placeables;
-  if (!tiles?.length) return null;
+  const tiles =
+    canvas?.tiles?.placeables;
 
-  // create a stable list sorted by draw-ish priority
-  const ordered = tiles
-    .map((t, idx) => ({ t, idx, d: t.document }))
-    .filter(o => !!o.d)
-    .sort((a, b) => {
-      const sa = a.d.sort ?? 0;
-      const sb = b.d.sort ?? 0;
-      if (sa !== sb) return sa - sb;      // lower first
-      return a.idx - b.idx;               // stable
-    });
+  if (!tiles?.length) {
+    return null;
+  }
 
-  // iterate reverse: topmost first
-  for (let i = ordered.length - 1; i >= 0; i--) {
-    const { t, d } = ordered[i];
+  const ordered =
+    tiles
+      .map((tile, index) => ({
+        tile,
+        index,
+        document: tile.document
+      }))
+      .filter(
+        item => !!item.document
+      )
+      .sort((a, b) => {
+        const sortA =
+          a.document.sort ?? 0;
 
-    const enabled = !!d.getFlag(MODULE_ID, FLAGS.enabled);
-    if (!enabled) continue;
+        const sortB =
+          b.document.sort ?? 0;
 
-    const cached = d.getFlag(MODULE_ID, FLAGS.cachedHtml);
-    if (!cached || !cached.trim()) continue;
+        if (sortA !== sortB) {
+          return sortA - sortB;
+        }
 
-    // optional: don't show hidden tiles to players
-    if (d.hidden && !game.user.isGM) continue;
+        return a.index - b.index;
+      });
 
-    // quick AABB reject
-    const withinAABB =
-      x >= d.x && x <= d.x + d.width &&
-      y >= d.y && y <= d.y + d.height;
 
-    const rot = d.rotation ?? 0;
-    if (!withinAABB && rot === 0) continue;
+  /*
+   * Reverse order means topmost tile first.
+   */
+  for (
+    let i = ordered.length - 1;
+    i >= 0;
+    i--
+  ) {
+    const {
+      tile,
+      document
+    } = ordered[i];
 
-    const hit = rot
-      ? pointInRotatedRect(x, y, d.x, d.y, d.width, d.height, rot)
-      : withinAABB;
 
-    if (!hit) continue;
+    const enabled =
+      !!document.getFlag(
+        MODULE_ID,
+        FLAGS.enabled
+      );
 
-    return t;
+    if (!enabled) {
+      continue;
+    }
+
+
+    const cached =
+      document.getFlag(
+        MODULE_ID,
+        FLAGS.cachedHtml
+      );
+
+    if (
+      !cached ||
+      !cached.trim()
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Don't show hidden tiles to players.
+     */
+    if (
+      document.hidden &&
+      !game.user.isGM
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Fast bounding-box test.
+     */
+    const insideAABB =
+      x >= document.x &&
+      x <= document.x + document.width &&
+      y >= document.y &&
+      y <= document.y + document.height;
+
+
+    const rotation =
+      document.rotation ?? 0;
+
+
+    if (
+      !insideAABB &&
+      rotation === 0
+    ) {
+      continue;
+    }
+
+
+    const hit =
+      rotation
+        ? pointInRotatedRect(
+            x,
+            y,
+            document.x,
+            document.y,
+            document.width,
+            document.height,
+            rotation
+          )
+        : insideAABB;
+
+
+    if (!hit) {
+      continue;
+    }
+
+    return tile;
   }
 
   return null;
 }
 
+
 function attachCanvasHoverListener() {
-  if (!canvas?.stage || !canvas?.app?.view) return;
-
-  // remove previous listeners
-  if (_tjtHover.onMove) canvas.stage.off("pointermove", _tjtHover.onMove);
-  if (_tjtHover.onLeave) canvas.app.view.removeEventListener("mouseleave", _tjtHover.onLeave);
-
-  _tjtHover.tileId = null;
-  hideTooltip();
-
-  // ensure stage receives pointer events everywhere (even over empty space)
-  try {
-    // PIXI v7: eventMode replaces "interactive"
-    canvas.stage.eventMode = "static";
-    // retrieve canvas dimensions for the current scene
-    const w = canvas.dimensions?.width ?? canvas.scene?.dimensions?.width ?? 0;
-    const h = canvas.dimensions?.height ?? canvas.scene?.dimensions?.height ?? 0;
-    if (w && h) canvas.stage.hitArea = new PIXI.Rectangle(0, 0, w, h);
-  } catch (e) {
-    console.warn(`${MODULE_ID} | Could not set stage hitArea/eventMode`, e);
+  if (
+    !canvas?.stage ||
+    !canvas?.app?.view
+  ) {
+    return;
   }
 
-  _tjtHover.onMove = (ev) => {
-    // only display tooltips when Token Controls are active - previously tooltips would display regardless of active layer
-    if (!isTokenControlsActive()) {
+
+  /*
+   * Remove old listeners when the canvas is recreated.
+   */
+  if (_tjtHover.onMove) {
+    canvas.stage.off(
+      "pointermove",
+      _tjtHover.onMove
+    );
+  }
+
+  if (_tjtHover.onLeave) {
+    canvas.app.view.removeEventListener(
+      "mouseleave",
+      _tjtHover.onLeave
+    );
+  }
+
+
+  _tjtHover.tileId = null;
+
+  hideTooltip();
+
+
+  /*
+   * PIXI v7 uses eventMode instead of interactive.
+   */
+  try {
+    canvas.stage.eventMode =
+      "static";
+
+    const width =
+      canvas.dimensions?.width ??
+      canvas.scene?.dimensions?.width ??
+      0;
+
+    const height =
+      canvas.dimensions?.height ??
+      canvas.scene?.dimensions?.height ??
+      0;
+
+    if (
+      width &&
+      height
+    ) {
+      canvas.stage.hitArea =
+        new PIXI.Rectangle(
+          0,
+          0,
+          width,
+          height
+        );
+    }
+
+  } catch (error) {
+    console.warn(
+      `${MODULE_ID} | Could not configure canvas pointer handling`,
+      error
+    );
+  }
+
+
+  _tjtHover.onMove =
+    event => {
+      /*
+       * Only display tooltips when the Token Controls
+       * layer is active.
+       */
+      if (
+        !isTokenControlsActive()
+      ) {
         if (_tjtHover.tileId) {
-        _tjtHover.tileId = null;
-        hideTooltip();
+          _tjtHover.tileId = null;
+          hideTooltip();
         }
-    return;
-    }
 
-    // ev.global is renderer space; convert to scene/canvas space:
-    // stage.toLocal accounts for pan/zoom transforms.
-    
-    const g = ev?.global ?? ev?.data?.global;
-    if (!g) return;
-
-    const p = canvas.stage.toLocal(g); // <-- critical fix
-    const x = p.x;
-    const y = p.y;
-
-    const tile = getTopmostTooltipTileAt(x, y);
-    const tileDoc = tile?.document;
-
-    if (!tileDoc) {
-      if (_tjtHover.tileId) {
-        _tjtHover.tileId = null;
-        hideTooltip();
+        return;
       }
-      return;
-    }
 
-    if (_tjtHover.tileId !== tileDoc.id) {
-      _tjtHover.tileId = tileDoc.id;
-      const html = getCachedTooltip(tileDoc);
-      if (!html) return hideTooltip();
-      showTooltip(html);
-    }
-  };
 
-  _tjtHover.onLeave = () => {
-    _tjtHover.tileId = null;
-    hideTooltip();
-  };
+      /*
+       * PIXI global coordinates are converted into
+       * Foundry scene/canvas coordinates.
+       *
+       * This accounts for pan and zoom.
+       */
+      const global =
+        event?.global ??
+        event?.data?.global;
 
-  canvas.stage.on("pointermove", _tjtHover.onMove);
-  canvas.app.view.addEventListener("mouseleave", _tjtHover.onLeave);
+      if (!global) {
+        return;
+      }
+
+
+      const point =
+        canvas.stage.toLocal(
+          global
+        );
+
+      const tile =
+        getTopmostTooltipTileAt(
+          point.x,
+          point.y
+        );
+
+      const tileDoc =
+        tile?.document;
+
+
+      if (!tileDoc) {
+        if (_tjtHover.tileId) {
+          _tjtHover.tileId = null;
+          hideTooltip();
+        }
+
+        return;
+      }
+
+
+      /*
+       * Only update the tooltip when the hovered
+       * Tile changes.
+       */
+      if (
+        _tjtHover.tileId !==
+        tileDoc.id
+      ) {
+        _tjtHover.tileId =
+          tileDoc.id;
+
+        const html =
+          getCachedTooltip(
+            tileDoc
+          );
+
+        if (!html) {
+          hideTooltip();
+          return;
+        }
+
+        showTooltip(html);
+      }
+    };
+
+
+  _tjtHover.onLeave =
+    () => {
+      _tjtHover.tileId = null;
+      hideTooltip();
+    };
+
+
+  canvas.stage.on(
+    "pointermove",
+    _tjtHover.onMove
+  );
+
+  canvas.app.view.addEventListener(
+    "mouseleave",
+    _tjtHover.onLeave
+  );
 }
 
-/* hooks  */
 
-Hooks.once("ready", () => {
-  // track browser mouse for tooltip positioning near cursor
-  window.addEventListener("mousemove", (ev) => {
-    mouseX = ev.clientX;
-    mouseY = ev.clientY;
-    if (tooltipEl?.style.display === "block") positionTooltip();
+/* ------------------------------------------------------------------------- */
+/* Foundry hooks                                                             */
+/* ------------------------------------------------------------------------- */
 
-    // fix v0.4.0 hide tooltip if the cursor moves over an open Foundry window
-    if (ev.target?.closest?.(".app, .application")) {
-      if (_tjtHover.tileId) {
-        _tjtHover.tileId = null;
-        hideTooltip();
+Hooks.once(
+  "ready",
+  () => {
+    /*
+     * Track browser mouse coordinates so the tooltip
+     * can follow the cursor.
+     */
+    window.addEventListener(
+      "mousemove",
+      event => {
+        mouseX =
+          event.clientX;
+
+        mouseY =
+          event.clientY;
+
+
+        if (
+          tooltipEl?.style.display ===
+          "block"
+        ) {
+          positionTooltip();
+        }
+
+
+        /*
+         * Hide tooltip when cursor enters a Foundry
+         * application window.
+         */
+        if (
+          event.target?.closest?.(
+            ".app, .application"
+          )
+        ) {
+          if (_tjtHover.tileId) {
+            _tjtHover.tileId = null;
+            hideTooltip();
+          }
+        }
       }
-    }
-  });
+    );
+  }
+);
 
-  // gm caching: when tooltip flags change (usually saving TileConfig), rebuild cache
-  Hooks.on("updateTile", async (tileDoc, change) => {
-    if (!tooltipFlagsTouched(change)) return;
-    await buildCacheFromJournal(tileDoc);
-  });
-});
 
-// inject tab into both core TileConfig and Monk's Active Tiles config (if present)
-Hooks.on("renderTileConfig", (app, html) => addTooltipTabToTileConfig(app, html));
-Hooks.on("renderActiveTileConfig", (app, html) => addTooltipTabToTileConfig(app, html));
+/*
+ * Core Foundry Tile Configuration.
+ */
+Hooks.on(
+  "renderTileConfig",
+  (app, html) => {
+    addTooltipTabToTileConfig(
+      app,
+      html
+    );
+  }
+);
 
-// attach layer-independent hover detection whenever the canvas is ready
-Hooks.on("canvasReady", () => {
-  attachCanvasHoverListener();
-});
+
+/*
+ * Monk's Active Tile configuration.
+ */
+Hooks.on(
+  "renderActiveTileConfig",
+  (app, html) => {
+    addTooltipTabToTileConfig(
+      app,
+      html
+    );
+  }
+);
+
+
+/*
+ * Reattach canvas hover listener when a scene/canvas
+ * becomes ready.
+ */
+Hooks.on(
+  "canvasReady",
+  () => {
+    attachCanvasHoverListener();
+  }
+);
