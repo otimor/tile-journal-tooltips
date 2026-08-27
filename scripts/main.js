@@ -1,5 +1,5 @@
 const MODULE_ID = "tile-journal-tooltips-fix";
-const TOOLTIP_ID = "tjt-tooltip-fix";
+const TOOLTIP_ID = "tjt-tooltip";
 
 const FLAGS = {
   enabled: "enabled",
