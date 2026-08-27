@@ -133,9 +133,9 @@ async function clearCache(tileDoc) {
   await tileDoc.update({
     flags: {
       [MODULE_ID]: {
-        [`-=${FLAGS.cachedHtml}`]:    null,
-        [`-=${FLAGS.cachedTitle}`]:   null,
-        [`-=${FLAGS.cachedUpdated}`]: null
+        cachedHtml: foundry.data.operators._del,
+        cachedTitle: foundry.data.operators._del,
+        cachedUpdated: foundry.data.operators._del
       }
     }
   }, { render: false });
