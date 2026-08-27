@@ -130,15 +130,17 @@ function getCachedTooltip(tileDoc) {
 }
 
 async function clearCache(tileDoc) {
+  console.debug(MODULE_ID, "Before clearCache",  tileDoc.flags.MODULE_ID)
   await tileDoc.update({
     flags: {
       [MODULE_ID]: {
-        cachedHtml: foundry.data.operators._del,
-        cachedTitle: foundry.data.operators._del,
-        cachedUpdated: foundry.data.operators._del
+        [FLAGS.cachedHtml]: foundry.data.operators._del,
+        [FLAGS.cachedTitle]: foundry.data.operators._del,
+        [FLAGS.cachedUpdated]: foundry.data.operators._del
       }
     }
   }, { render: false });
+  console.debug(MODULE_ID, "After clearCache",  tileDoc.flags.MODULE_ID)
 }
 
 async function buildCacheFromJournal(tileDoc, overrides = {}) {
@@ -208,6 +210,7 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
       }
     }
   }, { render: false });
+  console.debug(MODULE_ID, "After tileDoc update",  tileDoc.flags.MODULE_ID)
 }
 
 function tooltipFlagsTouched(change) {
