@@ -1,5 +1,5 @@
 const MODULE_ID = "tile-journal-tooltips-fix";
-const TOOLTIP_ID = "tjt-tooltip";
+const TOOLTIP_ID = "tjt-tooltip-fix";
 
 // flags stored on the tile document
 const FLAGS = {
