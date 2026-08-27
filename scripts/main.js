@@ -996,20 +996,12 @@ function getTopmostTooltipTileAt(x, y) {
 
 
 function attachCanvasHoverListener() {
-  if (
-    !canvas?.stage ||
-    !canvas?.app?.view
-  ) {
-    return;
-  }
+  if (!canvas?.app?.view) return;
 
-
-  /*
-   * Remove old listeners when the canvas is recreated.
-   */
+  // Remove previous listener if the canvas was recreated.
   if (_tjtHover.onMove) {
-    canvas.stage.off(
-      "pointermove",
+    canvas.app.view.removeEventListener(
+      "mousemove",
       _tjtHover.onMove
     );
   }
@@ -1021,143 +1013,76 @@ function attachCanvasHoverListener() {
     );
   }
 
-
   _tjtHover.tileId = null;
-
   hideTooltip();
 
+  _tjtHover.onMove = (event) => {
+    /*
+     * Do NOT restrict this to the Token Controls layer.
+     * A tooltip belongs to a Tile, so it should work regardless
+     * of which Foundry layer is currently active.
+     */
 
-  /*
-   * PIXI v7 uses eventMode instead of interactive.
-   */
-  try {
-    canvas.stage.eventMode =
-      "static";
+    if (!canvas.ready) return;
 
-    const width =
-      canvas.dimensions?.width ??
-      canvas.scene?.dimensions?.width ??
-      0;
+    /*
+     * Convert browser/client coordinates to Foundry canvas
+     * coordinates.
+     *
+     * Foundry V13 provides this specifically for this purpose.
+     */
+    const point = canvas.canvasCoordinatesFromClient({
+      x: event.clientX,
+      y: event.clientY
+    });
 
-    const height =
-      canvas.dimensions?.height ??
-      canvas.scene?.dimensions?.height ??
-      0;
+    if (!point) return;
 
-    if (
-      width &&
-      height
-    ) {
-      canvas.stage.hitArea =
-        new PIXI.Rectangle(
-          0,
-          0,
-          width,
-          height
-        );
+    const tile = getTopmostTooltipTileAt(
+      point.x,
+      point.y
+    );
+
+    const tileDoc = tile?.document;
+
+    /*
+     * Mouse isn't over a tooltip-enabled tile.
+     */
+    if (!tileDoc) {
+      if (_tjtHover.tileId !== null) {
+        _tjtHover.tileId = null;
+        hideTooltip();
+      }
+
+      return;
     }
 
-  } catch (error) {
-    console.warn(
-      `${MODULE_ID} | Could not configure canvas pointer handling`,
-      error
-    );
-  }
+    /*
+     * Only update the DOM when the hovered tile changes.
+     */
+    if (_tjtHover.tileId === tileDoc.id) {
+      return;
+    }
 
+    _tjtHover.tileId = tileDoc.id;
 
-  _tjtHover.onMove =
-    event => {
-      /*
-       * Only display tooltips when the Token Controls
-       * layer is active.
-       */
-      if (
-        !isTokenControlsActive()
-      ) {
-        if (_tjtHover.tileId) {
-          _tjtHover.tileId = null;
-          hideTooltip();
-        }
+    const html = getCachedTooltip(tileDoc);
 
-        return;
-      }
-
-
-      /*
-       * PIXI global coordinates are converted into
-       * Foundry scene/canvas coordinates.
-       *
-       * This accounts for pan and zoom.
-       */
-      const global =
-        event?.global ??
-        event?.data?.global;
-
-      if (!global) {
-        return;
-      }
-
-
-      const point =
-        canvas.stage.toLocal(
-          global
-        );
-
-      const tile =
-        getTopmostTooltipTileAt(
-          point.x,
-          point.y
-        );
-
-      const tileDoc =
-        tile?.document;
-
-
-      if (!tileDoc) {
-        if (_tjtHover.tileId) {
-          _tjtHover.tileId = null;
-          hideTooltip();
-        }
-
-        return;
-      }
-
-
-      /*
-       * Only update the tooltip when the hovered
-       * Tile changes.
-       */
-      if (
-        _tjtHover.tileId !==
-        tileDoc.id
-      ) {
-        _tjtHover.tileId =
-          tileDoc.id;
-
-        const html =
-          getCachedTooltip(
-            tileDoc
-          );
-
-        if (!html) {
-          hideTooltip();
-          return;
-        }
-
-        showTooltip(html);
-      }
-    };
-
-
-  _tjtHover.onLeave =
-    () => {
-      _tjtHover.tileId = null;
+    if (!html) {
       hideTooltip();
-    };
+      return;
+    }
 
+    showTooltip(html);
+  };
 
-  canvas.stage.on(
-    "pointermove",
+  _tjtHover.onLeave = () => {
+    _tjtHover.tileId = null;
+    hideTooltip();
+  };
+
+  canvas.app.view.addEventListener(
+    "mousemove",
     _tjtHover.onMove
   );
 
