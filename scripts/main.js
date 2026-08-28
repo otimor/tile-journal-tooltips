@@ -50,6 +50,7 @@ function positionTooltip() {
 
 
 function showTooltip(html) {
+  console.debug(MODULE_ID, "showTooltip")
   ensureTooltipEl();
 
   if (hideTimer) {
@@ -97,7 +98,8 @@ function getJournalPages(journalEntry) {
     journalEntry?.pages?.contents ??
     journalEntry?.pages ??
     [];
-
+  
+  console.debug(MODULE_ID, "GETjOURNALpAGES") 
   return Array.isArray(pages) ? pages : [];
 }
 
@@ -123,6 +125,7 @@ function buildPageOptions(journalId = "", selectedPageId = "") {
 
   if (!journal) return [];
 
+  console.debug(MODULE_ID, "buildPAgeOpts", journal)
   return getJournalPages(journal)
     .map(p => ({
       id: p.id,
@@ -172,12 +175,14 @@ function getCachedTooltip(tileDoc) {
     MODULE_ID,
     FLAGS.enabled
   );
+  console.debug(MODULE_ID, "getCahedTooltip enabled?", enabled, tileDoc)
 
   if (!enabled) return null;
 
   const title =
     tileDoc.getFlag(MODULE_ID, FLAGS.cachedTitle) ?? "";
 
+    console.debug(MODULE_ID, "getCahedTooltip title", title)
   const html =
     tileDoc.getFlag(MODULE_ID, FLAGS.cachedHtml) ?? "";
 
@@ -198,6 +203,7 @@ function getCachedTooltip(tileDoc) {
  * deletion syntax. Foundry V13 deprecated that syntax.
  */
 async function clearCache(tileDoc) {
+  console.debug(MODULE_ID, "clearCache", tileDoc)
   await tileDoc.update(
     {
       flags: {
@@ -249,7 +255,7 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
 
   console.debug(
     MODULE_ID,
-    "buildCacheFromJournal",
+    "buildCacheFromJournal enabled, journalID, pageId",
     {
       enabled,
       journalId,
@@ -441,6 +447,7 @@ function addTooltipTabToTileConfig(app, html) {
    * Read configuration from the actual Tile Document every time
    * the configuration window opens.
    */
+  console.debug(MODULE_ID, "AddToolTip ", tileDoc)
   const enabled = !!tileDoc.getFlag(
     MODULE_ID,
     FLAGS.enabled
@@ -679,7 +686,7 @@ function addTooltipTabToTileConfig(app, html) {
 
             const selectedEnabled =
               panel.querySelector(
-                'input[name="flags.tile-journal-tooltips.enabled"]'
+                'input[name="flags.tile-journal-tooltips-fix.enabled"]'
               )?.checked ?? false;
 
             const selectedJournal =
