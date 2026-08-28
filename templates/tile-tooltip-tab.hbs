@@ -1,7 +1,7 @@
-<div class="tab" data-group="" data-tab="tile-journal-tooltips">
+<div class="tab" data-group="" data-tab="tile-journal-tooltips-fix">
   <div class="form-group">
     <label>Enable Tooltip</label>
-    <input type="checkbox" name="flags.tile-journal-tooltips.enabled" {{#if enabled}}checked{{/if}}>
+    <input type="checkbox" name="flags.tile-journal-tooltips-fix.enabled" {{#if enabled}}checked{{/if}}>
     <p class="notes">
       When enabled, hovering this tile shows a tooltip near the cursor.
       Tooltip content is cached onto the tile when a GM saves, so players can see it without Journal permissions.
@@ -10,7 +10,7 @@
 
   <div class="form-group">
     <label>Journal Entry (source)</label>
-    <select name="flags.tile-journal-tooltips.journalId" class="tjt-journal">
+    <select name="flags.tile-journal-tooltips-fix.journalId" class="tjt-journal">
       <option value="">— None —</option>
       {{#each journalOptions}}
         <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
@@ -21,7 +21,7 @@
 
   <div class="form-group">
     <label>Journal Page (source)</label>
-    <select name="flags.tile-journal-tooltips.pageId" class="tjt-page" {{#unless hasJournal}}disabled{{/unless}}>
+    <select name="flags.tile-journal-tooltips-fix.pageId" class="tjt-page" {{#unless hasJournal}}disabled{{/unless}}>
       <option value="">— First Page / Entry Content —</option>
       {{#each pageOptions}}
         <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
