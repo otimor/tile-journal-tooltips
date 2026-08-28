@@ -1,6 +1,8 @@
 const MODULE_ID = "tile-journal-tooltips-fix";
 const TOOLTIP_ID = "tjt-tooltip";
 
+
+
 const FLAGS = {
   enabled: "enabled",
   journalId: "journalId",
@@ -57,6 +59,16 @@ function showTooltip(html) {
     clearTimeout(hideTimer);
     hideTimer = null;
   }
+
+  const fontSize = game.settings.get(
+    MODULE_ID,
+    "fontSize"
+  );
+  
+  tooltipEl.style.setProperty(
+    "--tjt-font-size",
+    `${fontSize}px`
+  );
 
   tooltipEl.innerHTML = html;
   tooltipEl.style.display = "block";
@@ -234,14 +246,14 @@ async function clearCache(tileDoc) {
  *   cachedUpdated
  */
 async function buildCacheFromJournal(tileDoc, overrides = {}) {
+
+  console.debug(MODULE_ID, "BuildCacheFromJournal beginning", tileDoc.MODULE_ID, tileDoc)
+
   if (!game.user.isGM) {
     throw new Error("Only a GM can build tooltip caches.");
   }
 
-  const enabled = !!tileDoc.getFlag(
-    MODULE_ID,
-    FLAGS.enabled
-  );
+  const enabled = !!tileDoc.getFlag(MODULE_ID, FLAGS.enabled);
 
   const journalId =
     overrides.journalId ??
@@ -255,15 +267,15 @@ async function buildCacheFromJournal(tileDoc, overrides = {}) {
 
   console.debug(
     MODULE_ID,
-    "buildCacheFromJournal enabled, journalID, pageId",
+    "buildCacheFromJournal enabled, journalID, pageId, tileDoc",
     {
       enabled,
       journalId,
       pageId
-    }
-  );
+    }, tileDoc  );
 
   if (!enabled || !journalId) {
+    console.debug(MODULE_ID, "buildCache clear cache", enabled, journalId)
     await clearCache(tileDoc);
     return false;
   }
@@ -524,6 +536,10 @@ function addTooltipTabToTileConfig(app, html) {
       tplPath,
       {
         enabled,
+        MODULE_ID,
+        enabledFlagName: `flags.${MODULE_ID}.${FLAGS.enabled}`,
+        journalFlagName: `flags.${MODULE_ID}.${FLAGS.journalId}`,
+        pageFlagName: `flags.${MODULE_ID}.${FLAGS.pageId}`,
         journalOptions,
         pageOptions,
         hasJournal,
@@ -686,7 +702,7 @@ function addTooltipTabToTileConfig(app, html) {
 
             const selectedEnabled =
               panel.querySelector(
-                'input[name="flags.tile-journal-tooltips-fix.enabled"]'
+                'input[name="flags.${MODULE_ID}.enabled"]'
               )?.checked ?? false;
 
             const selectedJournal =
@@ -742,7 +758,7 @@ function addTooltipTabToTileConfig(app, html) {
                   tileDoc
                 );
 
-
+              console.debug("success?", success)
               /*
                * Read the timestamp back from the
                * updated Tile Document.
@@ -1187,3 +1203,19 @@ Hooks.on(
     attachCanvasHoverListener();
   }
 );
+
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "fontSize", {
+    name: "Tooltip Font Size",
+    hint: "Font size used for Tile Journal Tooltips.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 14,
+    range: {
+      min: 8,
+      max: 48,
+      step: 1
+    }
+  });
+});
