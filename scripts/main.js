@@ -538,8 +538,8 @@ function addTooltipTabToTileConfig(app, html) {
         enabled,
         MODULE_ID,
         enabledFlagName: `flags.${MODULE_ID}.${FLAGS.enabled}`,
-        journalFlagName: `flags.${MODULE_ID}.${FLAGS.journalId}`,
-        pageFlagName: `flags.${MODULE_ID}.${FLAGS.pageId}`,
+        journalIdFlagName: `flags.${MODULE_ID}.${FLAGS.journalId}`,
+        pageIdFlagName: `flags.${MODULE_ID}.${FLAGS.pageId}`,
         journalOptions,
         pageOptions,
         hasJournal,
@@ -702,7 +702,7 @@ function addTooltipTabToTileConfig(app, html) {
 
             const selectedEnabled =
               panel.querySelector(
-                'input[name="flags.${MODULE_ID}.enabled"]'
+                `input[name="flags.${MODULE_ID}.enabled"]`
               )?.checked ?? false;
 
             const selectedJournal =
